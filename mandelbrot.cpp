@@ -3,12 +3,12 @@
 #include <math.h>
 using namespace std;
 
-#define ITERATIONS 500
-#define I_MIN -1
-#define I_MAX 1
+#define ITERATIONS 100
+#define I_MIN -2
+#define I_MAX 2
 #define R_MIN -2
-#define R_MAX 1
-#define RESOLUTION 500 // pixels per unit
+#define R_MAX 2
+#define RESOLUTION 1000 // pixels per unit
 
 int main () {
 	int width = (R_MAX - R_MIN) * RESOLUTION;
@@ -39,19 +39,24 @@ int main () {
 			double zi = 0; // imaginary part of z
 			double zr_tmp = 0;
 			double z_abs = 0;
+			int k = 0;
 
-			for (int k = 0; k < ITERATIONS && z_abs < 2; k++) {
+			for (k = 0; k < ITERATIONS && z_abs < 2; k++) {
 				zr_tmp = zr;
 				zr = (zr * zr) - (zi * zi) + cr;
 				zi = 2 * zi * zr_tmp + ci;
 				z_abs = sqrt((zr * zr) + (zi * zi));
 			}
 
-			if (z_abs >= 2) {
-				r = 255;
-				g = 255;
-				b = 255;
-			}
+			r = (ITERATIONS - k) * 255 / ITERATIONS * (ITERATIONS - k) / ITERATIONS;
+			g = (ITERATIONS - k) * 255 / ITERATIONS * (ITERATIONS - k) / ITERATIONS;
+			b = (ITERATIONS - k) * 255 / ITERATIONS * (ITERATIONS - k) / ITERATIONS;
+
+			// if (z_abs >= 2) {
+			// 	r = 255;
+			// 	g = 255;
+			// 	b = 255;
+			// }
 
 			// grid lines
 			// if (i == 0 || j == 0) {
