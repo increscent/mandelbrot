@@ -6,26 +6,57 @@
 	</head>
 
 	<body>
-		<canvas id="canvas" width="500" height="500"></canvas>
+		<canvas id="canvas" width="0" height="0"></canvas>
 
 		<script type="text/javascript">
+			var granularity = 300;
+			var x_min = -2;
+			var x_max = 2;
+			var y_min = -2;
+			var y_max = 2;
+			var iterations = 300;
+
+			var width = granularity * (x_max - x_min);
+			var height = granularity * (y_max - y_min);
+
 			var canvas = document.getElementById('canvas');
-			console.log(canvas.width);
-			console.log(canvas.height);
+			canvas.width = width;
+			canvas.height = height;
+
 			var ctx = canvas.getContext('2d');
 
-			var imageData = ctx.getImageData(0, 0, 500, 500);
+			var imageData = ctx.getImageData(0, 0, width, height);
 
-			for (var i = 0; i < imageData.height; i++) {
-				for (var j = 0; j < imageData.width; j++) {
-					for (var k = 0; k < 4; k++) {
-						var index = (i * imageData.width + j) * 4 + k;
-						if (k < 3) {
-							imageData.data[index] = 235;
-						} else {
-							imageData.data[index] = 255;
-						}
+			for (var i = height - 1; i >= 0; i--) {
+				for (var j = 0; j < width; j++) {
+					var cr = (j / granularity) + x_min;
+					var ci = (i / granularity) + y_min;
+					var zr = 0;
+					var zi = 0;
+					var z_tmp = 0;
+
+					for (var k = 0; k < iterations; k++) {
+						z_tmp = zr;
+						zr = zr * zr - zi * zi + cr;
+						zi = zi * z_tmp * 2 + ci;
+
+						if (Math.sqrt(zr * zr + zi * zi) >= 2)
+							break;
 					}
+
+					var index = ((height - 1 - i) * width + j) * 4;
+
+					if (k == iterations) {
+						imageData.data[index] = 150;
+						imageData.data[index + 1] = 150;
+						imageData.data[index + 2] = 150;
+					} else {
+						imageData.data[index] = 255;
+						imageData.data[index + 1] = 255;
+						imageData.data[index + 2] = 255;
+					}
+
+					imageData.data[index + 3] = 255;
 				}
 			}
 
