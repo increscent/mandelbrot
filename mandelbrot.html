@@ -23,6 +23,8 @@
 			var x_zoom_margin = zoom_ratio * width;
 			var y_zoom_margin = zoom_ratio * height;
 
+			var max_iterations = 100;
+
 			var ctx = canvas.getContext('2d');
 
 			drawMandelbrotSet();
@@ -39,35 +41,22 @@
 				var x_zoom = (x_zoom_margin / width) * x_range;
 				var y_zoom = (y_zoom_margin / height) * y_range;
 
-				// var x_zoom_offset = ((width / 2) - e.clientX);
-				// var y_zoom_offset = ((height / 2)) - e.clientY);
+				var x_zoom_ratio = e.clientX / width;
+				var y_zoom_ratio = e.clientY / height;
 
-				x_min += (zoom_direction * x_zoom / 2);
-				x_max -= (zoom_direction * x_zoom / 2);
-				y_min += (zoom_direction * y_zoom / 2);
-				y_max -= (zoom_direction * y_zoom / 2);
+				x_min += (zoom_direction * x_zoom * x_zoom_ratio);
+				x_max -= (zoom_direction * x_zoom * (1 - x_zoom_ratio));
+				y_min += (zoom_direction * y_zoom * (1 - y_zoom_ratio));
+				y_max -= (zoom_direction * y_zoom * y_zoom_ratio);
 
 				drawMandelbrotSet();
 			};
 
 			function drawMandelbrotSet() {
-				wipeCanvas(ctx, width, height);
-				drawMandelbrot(ctx, width, height, x_min, x_max, y_min, y_max, 3, {r: 229, g: 244, b: 66});
-				drawMandelbrot(ctx, width, height, x_min, x_max, y_min, y_max, 20, {r: 66, g: 244, b: 78});
-				drawMandelbrot(ctx, width, height, x_min, x_max, y_min, y_max, 100, {r: 75, g: 66, b: 244});
+				drawMandelbrot(ctx, width, height, x_min, x_max, y_min, y_max);
 			}
 
-			function wipeCanvas(context, width, height) {
-				var imageData = context.getImageData(0, 0, width, height);
-
-				for (var i = 0; i < width * height * 4; i++) {
-					imageData.data[i] = 255;
-				}
-
-				context.putImageData(imageData, 0, 0);
-			}
-
-			function drawMandelbrot(context, width, height, x_min, x_max, y_min, y_max, iterations, color) {
+			function drawMandelbrot(context, width, height, x_min, x_max, y_min, y_max) {
 				var x_res = width / (x_max - x_min);
 				var y_res = height / (y_max - y_min);
 
@@ -81,7 +70,7 @@
 						var zi = 0;
 						var z_tmp = 0;
 
-						for (var k = 0; k < iterations; k++) {
+						for (var k = 0; k < max_iterations; k++) {
 							z_tmp = zr;
 							zr = zr * zr - zi * zi + cr;
 							zi = zi * z_tmp * 2 + ci;
@@ -93,18 +82,27 @@
 						var index = ((height - 1 - i) * width + j) * 4;
 
 						// only draw if in set
-						if (k == iterations) {
-							imageData.data[index] = color.r;
-							imageData.data[index + 1] = color.g;
-							imageData.data[index + 2] = color.b;
+						if (k == max_iterations) {
+							imageData.data[index] = 75;
+							imageData.data[index + 1] = 66;
+							imageData.data[index + 2] = 254;
 							imageData.data[index + 3] = 255;
+						} else if (k > max_iterations / 5) {
+							imageData.data[index] = 66;
+							imageData.data[index + 1] = 244;
+							imageData.data[index + 2] = 78;
+							imageData.data[index + 3] = 255;
+						} else if (k > max_iterations / 50) {
+							imageData.data[index] = 299;
+							imageData.data[index + 1] = 244;
+							imageData.data[index + 2] = 66;
+							imageData.data[index + 3] = 255;
+						} else {
+							imageData.data[index] = 0;
+							imageData.data[index + 1] = 0;
+							imageData.data[index + 2] = 0;
+							imageData.data[index + 3] = 0;
 						}
-						// } else {
-						// 	imageData.data[index] = 0;
-						// 	imageData.data[index + 1] = 0;
-						// 	imageData.data[index + 2] = 0;
-						// 	imageData.data[index + 3] = 0;
-						// }
 					}
 				}
 
