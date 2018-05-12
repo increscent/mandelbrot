@@ -6,51 +6,86 @@
 	</head>
 
 	<body style="margin: 0; padding: 0;">
-		<canvas id="canvas" width="800" height="800"></canvas>
+		<canvas id="canvas" width="800" height="800" style="display: block; position: relative;
+			margin-top: 25px; margin-bottom: 25px;
+			margin-left: auto; margin-right: auto;"></canvas>
+
+		<table style="color: #aaa; width: 800px; display: table; position: relative;
+			margin-left: auto; margin-right: auto;">
+			<tr>
+				<td>Render time: <span id="render-time"></span>ms</td>
+				<td>Max iterations: <input type="text" id="max-iterations" size="5"></input></td>
+			</tr>
+			<tr>
+				<td colspan="2">Center coordinates: <span id="center-coordinates-r"></span> +
+					<span id="center-coordinates-i"></span>i</td>
+			</tr>
+		</table>
 
 		<script type="text/javascript">
-			var n_workers = 8;
+			var n_workers = 40;
 			var worker_pool = [];
 			for (var i = 0; i < n_workers; i++) {
 				worker_pool[i] = new Worker('mandelbrot-worker.js');
 			}
 			var zooming = false;
 			var zoom_count = 0;
+			var last_zoom_x;
+			var last_zoom_y;
+
+			var initial_granularity = 200;
+			var initial_zoom_ratio = .15;
+			var max_iterations = 300;
 
 			var canvas = document.getElementById('canvas');
 			width = canvas.width;
 			height = canvas.height;
-
-			var initial_granularity = 200;
-			var x_min = -1 * (width / initial_granularity / 2);
-			var x_max = (width / initial_granularity / 2);
-			var y_min = -1 * (height / initial_granularity / 2);
-			var y_max = (height / initial_granularity / 2);
-
-			var initial_zoom_ratio = .15;
-
-			var max_iterations = 300;
-
 			var context = canvas.getContext('2d');
-
-			drawMandelbrot();
 
 			canvas.onwheel = (e) =>  {
 				if (e.deltaY == 0)
 					return;
 
-				if (zooming) {
-					zoom_count++;
-					return;
-				} else {
-					zooming = true;
-				}
+				var zoom_direction = e.deltaY > 0 ? 1 : -1;
+				zoom_count += zoom_direction;
+				last_zoom_x = e.layerX;
+				last_zoom_y = e.layerY;
+				zoomAndDraw();
+			};
 
-				var zoom_ratio = initial_zoom_ratio;/* + .001 * Math.pow(zoom_count, zoom_count);*/
+			var x_min = -1 * (width / initial_granularity / 2);
+			var x_max = (width / initial_granularity / 2);
+			var y_min = -1 * (height / initial_granularity / 2);
+			var y_max = (height / initial_granularity / 2);
+
+			var render_time_element = document.getElementById('render-time');
+			var center_coordinates_r_element = document.getElementById('center-coordinates-r');
+			var center_coordinates_i_element = document.getElementById('center-coordinates-i');
+			var max_iterations_input = document.getElementById('max-iterations');
+			max_iterations_input.onkeyup = (e) => {
+				var value = parseInt(e.target.value);
+				if (value) {
+					max_iterations = value;
+					drawMandelbrot();
+				}
+			};
+			max_iterations_input.value = max_iterations;
+
+			drawMandelbrot();
+
+			function zoomAndDraw() {
+				if (zooming || !zoom_count)
+					return;
+
+				zooming = true;
+
+				var zoom_ratio = initial_zoom_ratio + .01 * Math.abs(zoom_count);
+				var zoom_direction = zoom_count > 0 ? 1 : -1;
+				zoom_count = 0; // reset zoom_count after using it to construct the zoom_ratio and zoom_direction
+
 				var x_zoom_margin = zoom_ratio * width;
 				var y_zoom_margin = zoom_ratio * height;
 
-				var zoom_direction = e.deltaY > 0 ? 1 : -1;
 
 				var x_range = x_max - x_min;
 				var y_range = y_max - y_min;
@@ -58,8 +93,8 @@
 				var x_zoom = (x_zoom_margin / width) * x_range;
 				var y_zoom = (y_zoom_margin / height) * y_range;
 
-				var x_zoom_ratio = e.clientX / width;
-				var y_zoom_ratio = e.clientY / height;
+				var x_zoom_ratio = last_zoom_x / width;
+				var y_zoom_ratio = last_zoom_y / height;
 
 				x_min += (zoom_direction * x_zoom * x_zoom_ratio);
 				x_max -= (zoom_direction * x_zoom * (1 - x_zoom_ratio));
@@ -68,12 +103,14 @@
 
 				drawMandelbrot().then(() => {
 					zooming = false;
-					zoom_count--;
+					zoomAndDraw();
 				});
-			};
+			}
 
 			function drawMandelbrot() {
 				return new Promise((resolve) => {
+					var startTime = new Date().getTime();
+
 					var promises = [];
 					for (var i = 0; i < n_workers; i++) {
 						promises.push(render_part(i));
@@ -83,11 +120,14 @@
 					.then(values => {
 						var imageData = context.getImageData(0, 0, width, height);
 						values.forEach(x => {
-							for (var i = 3; i < x[0].length; i += 4) {
-								imageData.data[i + x[1] * x[0].length] = x[0][i];
+							var offset = x[1] * x[0].length;
+							for (var i = 0; i < x[0].length; i++) {
+								imageData.data[i + offset] = x[0][i];
 							}
 						});
 						context.putImageData(imageData, 0, 0);
+
+						updateStats(startTime);
 						resolve();
 					});
 				});
@@ -108,6 +148,12 @@
 						max_iterations
 					});
 				});
+			}
+
+			function updateStats(startTime) {
+				render_time_element.innerHTML = new Date().getTime() - startTime;
+				center_coordinates_r_element.innerHTML = (x_max + x_min) / 2;
+				center_coordinates_i_element.innerHTML = (y_max + y_min) / 2;
 			}
 		</script>
 	</body>
