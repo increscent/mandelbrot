@@ -9,6 +9,14 @@
 		<canvas id="canvas" width="800" height="800"></canvas>
 
 		<script type="text/javascript">
+			var n_workers = 8;
+			var worker_pool = [];
+			for (var i = 0; i < n_workers; i++) {
+				worker_pool[i] = new Worker('mandelbrot-worker.js');
+			}
+			var zooming = false;
+			var zoom_count = 0;
+
 			var canvas = document.getElementById('canvas');
 			width = canvas.width;
 			height = canvas.height;
@@ -19,19 +27,28 @@
 			var y_min = -1 * (height / initial_granularity / 2);
 			var y_max = (height / initial_granularity / 2);
 
-			var zoom_ratio = .05;
-			var x_zoom_margin = zoom_ratio * width;
-			var y_zoom_margin = zoom_ratio * height;
+			var initial_zoom_ratio = .15;
 
-			var max_iterations = 100;
+			var max_iterations = 300;
 
-			var ctx = canvas.getContext('2d');
+			var context = canvas.getContext('2d');
 
-			drawMandelbrotSet();
+			drawMandelbrot();
 
 			canvas.onwheel = (e) =>  {
 				if (e.deltaY == 0)
 					return;
+
+				if (zooming) {
+					zoom_count++;
+					return;
+				} else {
+					zooming = true;
+				}
+
+				var zoom_ratio = initial_zoom_ratio;/* + .001 * Math.pow(zoom_count, zoom_count);*/
+				var x_zoom_margin = zoom_ratio * width;
+				var y_zoom_margin = zoom_ratio * height;
 
 				var zoom_direction = e.deltaY > 0 ? 1 : -1;
 
@@ -49,64 +66,48 @@
 				y_min += (zoom_direction * y_zoom * (1 - y_zoom_ratio));
 				y_max -= (zoom_direction * y_zoom * y_zoom_ratio);
 
-				drawMandelbrotSet();
+				drawMandelbrot().then(() => {
+					zooming = false;
+					zoom_count--;
+				});
 			};
 
-			function drawMandelbrotSet() {
-				drawMandelbrot(ctx, width, height, x_min, x_max, y_min, y_max);
+			function drawMandelbrot() {
+				return new Promise((resolve) => {
+					var promises = [];
+					for (var i = 0; i < n_workers; i++) {
+						promises.push(render_part(i));
+					}
+
+					Promise.all(promises)
+					.then(values => {
+						var imageData = context.getImageData(0, 0, width, height);
+						values.forEach(x => {
+							for (var i = 3; i < x[0].length; i += 4) {
+								imageData.data[i + x[1] * x[0].length] = x[0][i];
+							}
+						});
+						context.putImageData(imageData, 0, 0);
+						resolve();
+					});
+				});
 			}
 
-			function drawMandelbrot(context, width, height, x_min, x_max, y_min, y_max) {
-				var x_res = width / (x_max - x_min);
-				var y_res = height / (y_max - y_min);
-
-				var imageData = context.getImageData(0, 0, width, height);
-
-				for (var i = height - 1; i >= 0; i--) {
-					for (var j = 0; j < width; j++) {
-						var cr = (j / x_res) + x_min;
-						var ci = (i / y_res) + y_min;
-						var zr = 0;
-						var zi = 0;
-						var z_tmp = 0;
-
-						for (var k = 0; k < max_iterations; k++) {
-							z_tmp = zr;
-							zr = zr * zr - zi * zi + cr;
-							zi = zi * z_tmp * 2 + ci;
-
-							if (Math.sqrt(zr * zr + zi * zi) >= 2)
-								break;
-						}
-
-						var index = ((height - 1 - i) * width + j) * 4;
-
-						// only draw if in set
-						if (k == max_iterations) {
-							imageData.data[index] = 75;
-							imageData.data[index + 1] = 66;
-							imageData.data[index + 2] = 254;
-							imageData.data[index + 3] = 255;
-						} else if (k > max_iterations / 5) {
-							imageData.data[index] = 66;
-							imageData.data[index + 1] = 244;
-							imageData.data[index + 2] = 78;
-							imageData.data[index + 3] = 255;
-						} else if (k > max_iterations / 50) {
-							imageData.data[index] = 299;
-							imageData.data[index + 1] = 244;
-							imageData.data[index + 2] = 66;
-							imageData.data[index + 3] = 255;
-						} else {
-							imageData.data[index] = 0;
-							imageData.data[index + 1] = 0;
-							imageData.data[index + 2] = 0;
-							imageData.data[index + 3] = 0;
-						}
-					}
-				}
-
-				context.putImageData(imageData, 0, 0);
+			function render_part(i) {
+				return new Promise((resolve) => {
+					worker_pool[i].onmessage = (e) => {
+						resolve([e.data, i])
+					};
+					worker_pool[i].postMessage({
+						width,
+						height: height / n_workers,
+						x_min,
+						x_max,
+						y_min: y_max - ((y_max - y_min) / n_workers * (i + 1)),
+						y_max: y_max - ((y_max - y_min) / n_workers * i),
+						max_iterations
+					});
+				});
 			}
 		</script>
 	</body>
